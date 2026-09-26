@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-title" content="MyPlan">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Patrick+Hand&display=swap">
@@ -285,6 +285,11 @@ textarea.field{resize:vertical;min-height:64px}
 .auth form{display:flex;flex-direction:column;gap:12px}
 .auth label{display:flex;flex-direction:column;gap:5px;font-size:13.5px;color:var(--ink-2);font-weight:700}
 .auth .field{font-size:16px;color:var(--ink)}
+.auth label[for]{margin-bottom:-7px}
+.pw{position:relative}
+.pw .field{width:100%;padding-right:52px}
+.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:44px;height:40px;border:0;background:none;border-radius:10px;display:grid;place-items:center;color:var(--ink-3)}
+.pw-eye:hover,.pw-eye[aria-pressed="true"]{color:var(--accent-deep)}
 .auth .msg{font-size:14px;padding:10px 14px;border-radius:14px;background:var(--yellow-soft)}
 .auth .msg.ok{background:var(--accent-soft)}
 .auth .switch{margin-top:14px;color:var(--ink-2)}
@@ -426,6 +431,8 @@ const I={
   moon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>',
   heart:'<svg width="0.7em" height="0.7em" viewBox="0 0 24 24" fill="var(--accent)" aria-hidden="true"><path d="M12 21s-8-5.2-8-11.2A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.8C20 15.8 12 21 12 21Z"/></svg>',
   heartY:'<svg width="16" height="16" viewBox="0 0 24 24" fill="var(--yellow)" aria-hidden="true" style="display:inline;vertical-align:-2px"><path d="M12 21s-8-5.2-8-11.2A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.8C20 15.8 12 21 12 21Z"/></svg>',
+  eye:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.7 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18"/></svg>',
   list:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1"/></svg>',
   stDone:'<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="14" fill="var(--accent)"/><path d="m9 15.5 4 4 8-8.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   stDoing:'<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" fill="var(--yellow)"><circle cx="15" cy="3.5" r="2.6"/><circle cx="23.1" cy="6.9" r="2.4"/><circle cx="26.5" cy="15" r="2.2"/><circle cx="23.1" cy="23.1" r="2"/><circle cx="15" cy="26.5" r="1.8"/><circle cx="6.9" cy="23.1" r="1.6"/><circle cx="3.5" cy="15" r="1.4"/><circle cx="6.9" cy="6.9" r="1.2"/></svg>',
@@ -440,6 +447,8 @@ function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 {const v=lsGet('myplan-view');if(v)S.view=v}
 
 const CFG=window.MYPLAN_CONFIG||{};
+// Ghi nhận link đặt lại mật khẩu trước khi Supabase xoá thông tin khỏi địa chỉ trang.
+const RECOVERY=/type=recovery/.test(location.hash);
 const sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseKey);
 let session=null,channel=null;
 const userName=()=>{const u=session&&session.user;if(!u)return '';return (u.user_metadata&&u.user_metadata.name)||u.email.split('@')[0]};
@@ -551,7 +560,7 @@ function monthHead(){
   const m=S.calMonth;
   return '<div class="card-h"><h2>Tháng '+(m.getMonth()+1)+', '+m.getFullYear()+'</h2><div class="month-nav"><div class="seg"><button data-act="mon" data-n="-1" aria-label="Tháng trước">'+I.left+'</button><button data-act="mon" data-n="1" aria-label="Tháng sau">'+I.right+'</button></div><button class="ghost-btn" data-act="mon" data-n="0">Hôm nay</button></div></div>';
 }
-const goalImg=ic=>'assets/g-'+(GOAL_ICONS.some(x=>x[0]===ic)?ic:'target')+'.png';
+const goalImg=ic=>'g-'+(GOAL_ICONS.some(x=>x[0]===ic)?ic:'target')+'.png';
 function goalRow(g){
   const p=Math.max(0,Math.min(100,+g.progress||0)),c=goalColor(g.color);
   return '<div class="goal-row"><div class="g-ic soft-'+c+'"><img src="'+goalImg(g.icon)+'" alt=""></div>'+
@@ -573,18 +582,18 @@ function renderHome(){
   const goals=S.goals.slice(0,3);
   return '<div class="home"><div class="col">'+
    '<section class="card hero"><div class="hero-top"><div class="hero-text"><p class="hi">Xin chào,</p><h1>'+name+' '+I.heart+'</h1><p>Hôm nay cũng là một ngày tuyệt vời để tiến lên nhé!</p></div>'+
-     '<div class="hero-art"><img class="art" src="assets/mascot.png" alt=""><span class="bubble hand">Cố lên<br>'+name+' ơi!</span></div></div>'+
+     '<div class="hero-art"><img class="art" src="mascot.png" alt=""><span class="bubble hand">Cố lên<br>'+name+' ơi!</span></div></div>'+
     '<div class="ring-card">'+ring(st.pct)+'<span class="hand">Cố lên<br>'+name+' ơi!</span></div>'+
     '<div class="tiles">'+
-     '<div class="tile soft-green"><span class="t-ic">'+I.stDone+'</span><div class="t-lb">Đã xong</div><b class="num">'+st.done+'</b><small>nhiệm vụ</small><img class="art" src="assets/ic-done.png" alt=""></div>'+
-     '<div class="tile soft-yellow"><span class="t-ic">'+I.stDoing+'</span><div class="t-lb">Đang làm</div><b class="num">'+st.doing+'</b><small>nhiệm vụ</small><img class="art" src="assets/ic-doing.png" alt=""></div>'+
-     '<div class="tile soft-pink"><span class="t-ic">'+I.stLeft+'</span><div class="t-lb">Còn lại</div><b class="num">'+st.left+'</b><small>nhiệm vụ</small><img class="art" src="assets/ic-left.png" alt=""></div>'+
-     '<div class="tile soft-blue"><span class="t-ic">'+I.stGoal+'</span><div class="t-lb">Mục tiêu</div><b class="num">'+S.goals.length+'</b><small>mục tiêu</small><img class="art" src="assets/ic-goal.png" alt=""></div>'+
+     '<div class="tile soft-green"><span class="t-ic">'+I.stDone+'</span><div class="t-lb">Đã xong</div><b class="num">'+st.done+'</b><small>nhiệm vụ</small><img class="art" src="ic-done.png" alt=""></div>'+
+     '<div class="tile soft-yellow"><span class="t-ic">'+I.stDoing+'</span><div class="t-lb">Đang làm</div><b class="num">'+st.doing+'</b><small>nhiệm vụ</small><img class="art" src="ic-doing.png" alt=""></div>'+
+     '<div class="tile soft-pink"><span class="t-ic">'+I.stLeft+'</span><div class="t-lb">Còn lại</div><b class="num">'+st.left+'</b><small>nhiệm vụ</small><img class="art" src="ic-left.png" alt=""></div>'+
+     '<div class="tile soft-blue"><span class="t-ic">'+I.stGoal+'</span><div class="t-lb">Mục tiêu</div><b class="num">'+S.goals.length+'</b><small>mục tiêu</small><img class="art" src="ic-goal.png" alt=""></div>'+
     '</div></section>'+
    '<section class="card"><div class="card-h"><h2>Công việc hôm nay</h2><div class="month-nav"><span class="muted d-only">'+esc(dLong(td))+'</span><button class="pill-btn" data-act="new-task" data-date="'+td+'" aria-label="Thêm công việc">'+I.plus+'<span class="d-only">Thêm công việc</span></button></div></div>'+
     (todays.length?'<ul class="tlist">'+todays.map(t=>taskRow(t)).join('')+'</ul>':'<div class="empty">Chưa có việc nào cho hôm nay. Bấm + để thêm nhé.</div>')+'</section>'+
   '</div><div class="col">'+
-   '<section class="card calcard d-only"><div>'+monthHead()+monthGrid()+'</div><div class="calside"><img class="art" src="assets/calendar.png" alt=""><div class="note hand">Kế hoạch nhỏ mỗi ngày, thành công lớn mai sau! '+I.heartY+'</div></div></section>'+
+   '<section class="card calcard d-only"><div>'+monthHead()+monthGrid()+'</div><div class="calside"><img class="art" src="calendar.png" alt=""><div class="note hand">Kế hoạch nhỏ mỗi ngày, thành công lớn mai sau! '+I.heartY+'</div></div></section>'+
    '<section class="card d-only"><div class="card-h"><h2>Mục tiêu của mình</h2><button class="link-btn" data-act="nav" data-view="stats">Xem tất cả '+I.arrow+'</button></div>'+
     (goals.length?goals.map(goalRow).join(''):'<div class="empty">Chưa có mục tiêu. <button class="link-btn" data-act="new-goal">Thêm mục tiêu đầu tiên</button></div>')+'</section>'+
   '</div></div>';
@@ -623,7 +632,7 @@ function renderCal(){
   const strip=[...Array(7)].map((_,i)=>{const d=addDays(ws,i),k=ymd(d),ts=S.tasks.filter(t=>t.date===k);const cols=[...new Set(ts.map(t=>catColor(t.cat)))].slice(0,1);
     return '<div><button class="wday'+(k===sel?' sel':'')+'" data-act="sel" data-date="'+k+'" aria-label="'+esc(dLabel(k))+'"><small>'+DOW[i]+'</small><span class="num">'+d.getDate()+'</span></button><div class="dots" style="margin-top:6px">'+cols.map(c=>'<i class="dot bg-'+c+'"></i>').join('')+'</div></div>'}).join('');
   const d=parse(sel);
-  return '<section class="page-head"><div><h1>Lịch</h1><p>Sắp xếp hôm nay, chạm gần hơn đến phiên bản tốt hơn của mình '+I.heartY+'</p></div><img class="ph-art art" src="assets/calendar.png" alt=""></section>'+
+  return '<section class="page-head"><div><h1>Lịch</h1><p>Sắp xếp hôm nay, chạm gần hơn đến phiên bản tốt hơn của mình '+I.heartY+'</p></div><img class="ph-art art" src="calendar.png" alt=""></section>'+
    '<div class="cal-layout"><section class="card d-only">'+monthHead()+monthGrid()+'</section>'+
    '<section class="card"><div class="wstrip">'+strip+'</div>'+
     '<div class="card-h"><h2 style="font-size:19px">'+(sel===td?'Hôm nay, ':'')+WD[d.getDay()]+', '+d.getDate()+' tháng '+(d.getMonth()+1)+'</h2><div class="month-nav"><button class="ghost-btn" data-act="wkshift" data-n="-7" aria-label="Tuần trước">'+I.left+'</button><button class="ghost-btn" data-act="wkshift" data-n="7" aria-label="Tuần sau">'+I.right+'</button><button class="pill-btn" data-act="new-task" data-date="'+sel+'" aria-label="Thêm việc vào ngày này">'+I.plus+'</button></div></div>'+
@@ -649,7 +658,7 @@ function renderStats(){
   const cats=CATS.map(c=>{const all=S.tasks.filter(t=>t.cat===c[0]),dn=all.filter(t=>t.status==='done').length;return{n:c[0],col:c[1],all:all.length,dn}}).filter(c=>c.all);
   return '<section class="page-head"><div><h1>Mục tiêu</h1><p>Những mục tiêu nhỏ hôm nay sẽ tạo nên phiên bản tuyệt vời mai sau '+I.heartY+'</p></div><div class="ph-actions"><button class="add-round" data-act="new-goal" aria-label="Thêm mục tiêu">'+I.plus+'</button></div></section>'+
    (S.goals.length?'<div class="goal-grid">'+S.goals.map(goalRow).join('')+'</div>':'<div class="card empty">Chưa có mục tiêu nào. Bấm + để đặt mục tiêu đầu tiên.</div>')+
-   '<div class="girl-note"><span class="hand">Mỗi ngày một chút tốt hơn nhé '+I.heartY+'</span><img class="art" src="assets/girl.png" alt=""></div>'+
+   '<div class="girl-note"><span class="hand">Mỗi ngày một chút tốt hơn nhé '+I.heartY+'</span><img class="art" src="girl.png" alt=""></div>'+
    '<h2 class="sec-title">Thống kê</h2><div class="kpis">'+
     '<section class="card kpi"><span>Hoàn thành 7 ngày qua</span><b class="num">'+last7+'</b><small>'+(diff===0?'Bằng 7 ngày trước đó':(diff>0?'+':'')+diff+' so với 7 ngày trước đó')+'</small></section>'+
     '<section class="card kpi"><span>Tiến độ tuần này</span><b class="num">'+st.pct+'%</b><small>'+st.done+'/'+st.total+' việc trong tuần</small></section>'+
@@ -682,49 +691,73 @@ function themeIcon(){document.getElementById('themeBtn').innerHTML=isDark()?I.mo
 {const t=lsGet('myplan-theme');if(t)document.documentElement.dataset.theme=t}
 
 /* ---------- đăng nhập ---------- */
-let authMode='login';
+// login | signup | forgot (gửi mail đặt lại) | newpass (sau khi bấm link trong mail)
+let authMode=RECOVERY?'newpass':'login';
+const NOAUTO='autocapitalize="none" autocorrect="off" spellcheck="false"';
 function renderAuth(msg,ok){
   document.body.classList.add('signed-out');
   const m=document.getElementById('main');m.dataset.view='auth';
-  const login=authMode==='login';
-  m.innerHTML='<section class="card auth"><img class="auth-art art" src="assets/mascot.png" alt=""><h1>'+(login?'Chào mừng trở lại!':'Tạo tài khoản MyPlan')+'</h1><p>'+(login?'Đăng nhập để xem kế hoạch của bạn trên mọi thiết bị.':'Dùng email thật để nhận thư xác nhận.')+'</p>'+
-   '<form id="authForm">'+(login?'':'<label>Tên của bạn<input id="a-name" class="field" autocomplete="given-name" required maxlength="30" placeholder="VD: Phanh"></label>')+
-   '<label>Email<input id="a-email" class="field" type="email" autocomplete="email" required></label>'+
-   '<label>Mật khẩu<input id="a-pass" class="field" type="password" minlength="8" autocomplete="'+(login?'current-password':'new-password')+'" required></label>'+
-   (msg?'<div class="msg'+(ok?' ok':'')+'" role="status">'+esc(msg)+'</div>':'')+
-   '<button class="pill-btn" type="submit" id="a-submit">'+(login?'Đăng nhập':'Tạo tài khoản')+'</button></form>'+
-   '<div class="switch">'+(login?'Chưa có tài khoản? ':'Đã có tài khoản? ')+'<button class="link-btn" style="color:var(--accent-deep)" data-act="auth-mode">'+(login?'Tạo tài khoản':'Đăng nhập')+'</button></div></section>';
+  const md=authMode;
+  const head={login:['Chào mừng trở lại!','Đăng nhập để xem kế hoạch của bạn trên mọi thiết bị.'],
+    signup:['Tạo tài khoản MyPlan','Dùng email thật để nhận thư xác nhận.'],
+    forgot:['Quên mật khẩu','Nhập email tài khoản, MyPlan sẽ gửi link để bạn đặt mật khẩu mới.'],
+    newpass:['Đặt mật khẩu mới','Nhập mật khẩu mới (ít nhất 8 ký tự) rồi bấm Lưu.']}[md];
+  const emailF='<label>Email<input id="a-email" class="field" type="email" autocomplete="email" '+NOAUTO+' required></label>';
+  const passF=(lb,ac)=>'<label for="a-pass">'+lb+'</label><div class="pw"><input id="a-pass" class="field" type="password" minlength="8" autocomplete="'+ac+'" '+NOAUTO+' required><button type="button" class="pw-eye" data-act="pw-eye" aria-label="Hiện mật khẩu" aria-pressed="false">'+I.eye+'</button></div>';
+  const fields={login:emailF+passF('Mật khẩu','current-password'),
+    signup:'<label>Tên của bạn<input id="a-name" class="field" autocomplete="given-name" required maxlength="30" placeholder="VD: Phanh"></label>'+emailF+passF('Mật khẩu','new-password'),
+    forgot:emailF,
+    newpass:passF('Mật khẩu mới','new-password')}[md];
+  const btnLb={login:'Đăng nhập',signup:'Tạo tài khoản',forgot:'Gửi link đặt lại',newpass:'Lưu mật khẩu'}[md];
+  const links={login:'<button class="link-btn" data-act="auth-go" data-m="forgot">Quên mật khẩu?</button><br>Chưa có tài khoản? <button class="link-btn" style="color:var(--accent-deep)" data-act="auth-go" data-m="signup">Tạo tài khoản</button>',
+    signup:'Đã có tài khoản? <button class="link-btn" style="color:var(--accent-deep)" data-act="auth-go" data-m="login">Đăng nhập</button>',
+    forgot:'<button class="link-btn" style="color:var(--accent-deep)" data-act="auth-go" data-m="login">Quay lại đăng nhập</button>',
+    newpass:''}[md];
+  m.innerHTML='<section class="card auth"><img class="auth-art art" src="mascot.png" alt=""><h1>'+head[0]+'</h1><p>'+head[1]+'</p>'+
+   '<form id="authForm">'+fields+(msg?'<div class="msg'+(ok?' ok':'')+'" role="status">'+esc(msg)+'</div>':'')+
+   '<button class="pill-btn" type="submit" id="a-submit">'+btnLb+'</button></form>'+(links?'<div class="switch">'+links+'</div>':'')+'</section>';
   document.getElementById('authForm').onsubmit=async e=>{
     e.preventDefault();
-    const email=document.getElementById('a-email').value.trim(),password=document.getElementById('a-pass').value;
+    const val=id=>{const el=document.getElementById(id);return el?el.value:''};
+    const email=val('a-email').trim().toLowerCase(),password=val('a-pass');
     const btn=document.getElementById('a-submit');btn.disabled=true;btn.textContent='Đang xử lý…';
-    if(login){
+    const here=location.origin+location.pathname;
+    if(md==='login'){
       const {error}=await sb.auth.signInWithPassword({email,password});
-      if(error)renderAuth(error.message.includes('Email not confirmed')?'Email chưa được xác nhận. Mở hộp thư và bấm link xác nhận trước.':'Email hoặc mật khẩu không đúng.');
-    }else{
-      const name=document.getElementById('a-name').value.trim();
-      const {data,error}=await sb.auth.signUp({email,password,options:{data:{name},emailRedirectTo:location.origin+location.pathname}});
+      if(error)renderAuth(/not confirmed/i.test(error.message)?'Email chưa được xác nhận. Mở hộp thư và bấm link xác nhận trước.':'Email hoặc mật khẩu không đúng. Nếu không nhớ mật khẩu, bấm "Quên mật khẩu?" bên dưới.');
+    }else if(md==='signup'){
+      const {data,error}=await sb.auth.signUp({email,password,options:{data:{name:val('a-name').trim()},emailRedirectTo:here}});
       if(error)renderAuth(/not allowed|disabled/i.test(error.message)?'Trang này không nhận đăng ký mới.':'Không tạo được tài khoản: '+error.message);
       else if(!data.session){authMode='login';renderAuth('Đã gửi thư xác nhận tới '+email+'. Bấm link trong thư rồi quay lại đây đăng nhập.',true)}
+    }else if(md==='forgot'){
+      const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:here});
+      if(error)renderAuth(/rate|seconds/i.test(error.message)?'Bạn vừa yêu cầu rồi. Đợi 1 phút rồi thử lại.':'Chưa gửi được thư. Kiểm tra lại email rồi thử lại.');
+      else{authMode='login';renderAuth('Đã gửi link đặt lại mật khẩu tới '+email+'. Mở thư trên chính thiết bị này và bấm link.',true)}
+    }else{
+      const {error}=await sb.auth.updateUser({password});
+      if(error)renderAuth(/different/i.test(error.message)?'Mật khẩu mới phải khác mật khẩu cũ.':'Chưa đổi được mật khẩu. Link có thể đã hết hạn, hãy gửi lại link mới.');
+      else{authMode='login';history.replaceState(null,'',location.pathname);toast('Đã đổi mật khẩu');onSession((await sb.auth.getSession()).data.session)}
     }
   };
 }
 function onSession(s){
   session=s;
-  if(!s){if(channel){sb.removeChannel(channel);channel=null}S.ready=false;S.tasks=[];S.goals=[];renderAuth();return}
+  if(!s||authMode==='newpass'){if(channel){sb.removeChannel(channel);channel=null}S.ready=false;S.tasks=[];S.goals=[];renderAuth();return}
   document.body.classList.remove('signed-out');
   const m=document.getElementById('main');if(m.dataset.view==='auth'){m.dataset.view='';m.innerHTML='<div class="loading">Đang tải…</div>'}
   render();loadAll();startSync();
 }
 async function boot(){
   if(DEMO){session={user:{email:'demo@myplan',user_metadata:{name:'Phanh'}}};demoData();render();return}
-  const {data}=await sb.auth.getSession();
-  onSession(data.session);
   sb.auth.onAuthStateChange((ev,s)=>{
+    if(ev==='PASSWORD_RECOVERY'){authMode='newpass';session=s;renderAuth();return}
+    if(ev==='INITIAL_SESSION')return;
     if(ev==='SIGNED_IN'&&session&&s&&s.user.id===session.user.id){session=s;return}
-    if(ev==='TOKEN_REFRESHED'||ev==='USER_UPDATED'){session=s;render();return}
+    if(ev==='TOKEN_REFRESHED'||ev==='USER_UPDATED'){session=s;if(authMode!=='newpass')render();return}
     if(ev==='SIGNED_IN'||ev==='SIGNED_OUT')onSession(s);
   });
+  const {data}=await sb.auth.getSession();
+  onSession(data.session);
 }
 
 /* ---------- modals ---------- */
@@ -797,7 +830,8 @@ document.addEventListener('click',e=>{
   if(a==='theme'){const n=isDark()?'light':'dark';document.documentElement.dataset.theme=n;lsSet('myplan-theme',n);themeIcon();return}
   if(a==='profile'){if(session)profileModal();return}
   if(a==='logout'){closeModal();sb.auth.signOut();return}
-  if(a==='auth-mode'){authMode=authMode==='login'?'signup':'login';renderAuth();return}
+  if(a==='pw-eye'){const inp=el.previousElementSibling,show=inp.type==='password';inp.type=show?'text':'password';el.setAttribute('aria-pressed',String(show));el.setAttribute('aria-label',show?'Ẩn mật khẩu':'Hiện mật khẩu');el.innerHTML=show?I.eyeOff:I.eye;inp.focus();return}
+  if(a==='auth-go'){authMode=el.dataset.m;renderAuth();return}
   if(a==='toggle'){const t=S.tasks.find(x=>x.id===id);if(!t)return;const o={...t};if(o.status==='done'){o.status='todo';delete o.doneAt}else{o.status='done';o.doneAt=today()}write('tasks',o);return}
   if(a==='edit'){const t=S.tasks.find(x=>x.id===id);if(t)taskModal(t);return}
   if(a==='new-task'){taskModal({date:el.dataset.date||today(),cat:'Công việc',status:'todo'});return}
