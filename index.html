@@ -32,7 +32,6 @@
   --danger:#D2434F;
   --shadow:0 2px 6px rgba(76,100,40,.05),0 10px 30px rgba(76,100,40,.07);
   --r:26px;
-  --art-blend:multiply;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -50,7 +49,6 @@
     --chip-on-soft:rgba(0,0,0,.25);
     --danger:#F07782;
     --shadow:0 1px 2px rgba(0,0,0,.35);
-    --art-blend:normal;
   }
 }
 :root[data-theme="dark"]{
@@ -68,7 +66,6 @@
   --chip-on-soft:rgba(0,0,0,.25);
   --danger:#F07782;
   --shadow:0 1px 2px rgba(0,0,0,.35);
-  --art-blend:normal;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Nunito",system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:500;padding-inline:16px;padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
@@ -80,9 +77,6 @@ button{cursor:pointer}
 h1,h2,h3{margin:0;text-wrap:balance;font-weight:800;letter-spacing:-.01em}
 .num{font-variant-numeric:tabular-nums}
 .hand{font-family:"Patrick Hand","Comic Sans MS",cursive;font-weight:400;color:var(--ink);line-height:1.25}
-/* Ảnh minh hoạ có nền sáng: nhân màu để nền hoà vào thẻ ở giao diện sáng. */
-.art{mix-blend-mode:var(--art-blend);mask-image:radial-gradient(ellipse 72% 72% at 50% 50%,#000 55%,transparent 98%);-webkit-mask-image:radial-gradient(ellipse 72% 72% at 50% 50%,#000 55%,transparent 98%)}
-.hero-art .art{mask-image:linear-gradient(to right,transparent 0,#000 22%,#000 100%);-webkit-mask-image:linear-gradient(to right,transparent 0,#000 22%,#000 100%)}
 .wrap{max-width:1240px;margin:0 auto;padding-block:16px 40px}
 
 /* header */
@@ -166,7 +160,8 @@ main{margin-top:18px}
 .t-sub{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:13.5px;color:var(--ink-3)}
 .t-sub .late{color:var(--danger);font-weight:700}
 .t-sub .doing{color:var(--amber);font-weight:700}
-.t-sub .tm{display:none}
+.t-sub .tm,.t-sub .m-chip{display:none}
+.t-sub .m-chip{font-size:11.5px;padding:2px 10px;margin-top:3px}
 .t-time{display:flex;align-items:center;gap:8px;color:var(--ink-2);min-width:128px;font-size:15px}
 .task.done .t-title{color:var(--ink-3)}
 
@@ -325,7 +320,7 @@ body.signed-out nav.tabs,body.signed-out #meBtn{display:none}
   .hero-text{flex:1}
   .hero-text h1{font-size:36px}
   .hero-text p{font-size:14.5px}
-  .hero-art{width:136px;margin-right:-4px}
+  .hero-art{width:150px;margin-right:-6px}
   .bubble{display:none}
   .ring-card{display:flex;align-items:center;justify-content:center;position:relative;background:var(--surface);border-radius:var(--r);margin-top:-12px;padding:22px 16px 8px;box-shadow:var(--shadow)}
   .ring-card .hand{position:absolute;right:18px;top:28px;font-size:19px;transform:rotate(-8deg)}
@@ -338,6 +333,15 @@ body.signed-out nav.tabs,body.signed-out #meBtn{display:none}
   .chk{width:30px;height:30px}
   .t-time{display:none}
   .t-sub .tm{display:inline}
+  .t-sub{align-items:center}
+  .t-sub .m-chip{display:inline-block}
+  .task>.chip{display:none}
+  .toolbar{gap:8px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none;margin-inline:-2px;padding:2px}
+  .chips::-webkit-scrollbar{display:none}
+  .fchip{flex:none;padding:6px 14px}
+  #fcat{flex:0 1 auto;max-width:48%}
+  .search{flex:1 1 120px}
   .t-title{font-size:15.5px}
   .chip{font-size:12px;padding:3px 10px}
   .card-h h2{font-size:21px}
@@ -531,6 +535,7 @@ function taskRow(t,opt={}){
   else if(opt.showDate&&t.date)sub.push(esc(dLabel(t.date)));
   if(t.time)sub.push('<span class="tm">'+esc(timeRange(t))+'</span>');
   if(t.status==='doing')sub.push('<span class="doing">Đang làm</span>');
+  sub.push('<span class="chip m-chip c-'+col+'">'+esc(t.cat||'Khác')+'</span>');
   return '<li class="task'+(done?' done':'')+'">'+
     '<button class="chk" data-act="toggle" data-id="'+esc(t.id)+'" aria-label="'+(done?'Bỏ đánh dấu xong':'Đánh dấu xong')+'">'+I.check+'</button>'+
     '<div class="t-main" data-act="edit" data-id="'+esc(t.id)+'"><div class="t-title">'+esc(t.title)+'</div>'+(sub.length?'<div class="t-sub">'+sub.join('')+'</div>':'')+'</div>'+
@@ -601,7 +606,7 @@ function renderHome(){
 
 function renderTasksShell(){
   const sc=[['all','Tất cả'],['todo','Chưa làm'],['doing','Đang làm'],['done','Đã xong']];
-  return '<section class="card"><div class="card-h"><h2>Tất cả công việc</h2><button class="pill-btn" data-act="new-task">'+I.plus+'Thêm công việc</button></div>'+
+  return '<section class="card"><div class="card-h"><h2>Tất cả công việc</h2><button class="pill-btn" data-act="new-task" aria-label="Thêm công việc">'+I.plus+'<span class="d-only">Thêm công việc</span></button></div>'+
    '<div class="toolbar"><div class="chips">'+sc.map(s=>'<button class="fchip" data-act="fstatus" data-v="'+s[0]+'" aria-pressed="'+(S.f.status===s[0])+'">'+s[1]+'</button>').join('')+'</div>'+
    '<select id="fcat" class="field" aria-label="Lọc theo nhóm"><option value="all">Mọi nhóm</option>'+CATS.map(c=>'<option'+(S.f.cat===c[0]?' selected':'')+'>'+c[0]+'</option>').join('')+'</select>'+
    '<input id="fq" class="field search" type="search" placeholder="Tìm việc…" value="'+esc(S.f.q)+'" aria-label="Tìm việc"></div>'+
