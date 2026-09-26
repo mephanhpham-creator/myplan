@@ -1,6 +1,6 @@
 // Service worker: lưu sẵn khung app để mở nhanh, và nhận thông báo đẩy.
-const CACHE = 'myplan-v2';
-const SHELL = ['./', './index.html', './config.js', './manifest.webmanifest', './icons/icon-192.png', './assets/mascot.png'];
+const CACHE = 'myplan-v3';
+const SHELL = ['./', './index.html', './config.js', './manifest.webmanifest', './icon-192.png', './mascot.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -34,8 +34,8 @@ self.addEventListener('push', e => {
   try { data = e.data ? e.data.json() : {}; } catch (_) { data = { body: e.data && e.data.text() }; }
   e.waitUntil(self.registration.showNotification(data.title || 'MyPlan', {
     body: data.body || '',
-    icon: 'icons/icon-192.png',
-    badge: 'icons/icon-192.png',
+    icon: 'icon-192.png',
+    badge: 'icon-192.png',
     tag: data.tag,
     data: { url: data.url || './' }
   }));
