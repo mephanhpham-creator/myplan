@@ -855,7 +855,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&mroot.innerHTML)clo
 
 themeIcon();
 boot();
-if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol==='https:'){
+  // Khi có bản app mới, service worker mới tiếp quản: tải lại trang một lần để hiện bản mới.
+  const hadController=!!navigator.serviceWorker.controller;let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(hadController&&!reloaded&&!mroot.innerHTML){reloaded=true;location.reload()}});
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>{
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)r.update().catch(()=>{})});
+  }).catch(()=>{});
+}
 })();
 </script>
 </body>

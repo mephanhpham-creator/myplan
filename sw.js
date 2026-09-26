@@ -1,5 +1,5 @@
 // Service worker: lưu sẵn khung app để mở nhanh, và nhận thông báo đẩy.
-const CACHE = 'myplan-v3';
+const CACHE = 'myplan-v4';
 const SHELL = ['./', './index.html', './config.js', './manifest.webmanifest', './icon-192.png', './mascot.png'];
 
 self.addEventListener('install', e => {
@@ -14,12 +14,13 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Mạng trước, cache sau: luôn lấy bản mới nhất khi có mạng.
+// Mạng trước, cache sau: luôn hỏi lại máy chủ (bỏ qua bộ nhớ tạm 10 phút của trình duyệt),
+// chỉ dùng bản đã lưu khi mất mạng.
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));
