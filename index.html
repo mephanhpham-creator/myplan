@@ -290,6 +290,13 @@ textarea.field{resize:vertical;min-height:64px}
 .auth .switch{margin-top:14px;color:var(--ink-2)}
 .auth .pill-btn{justify-content:center}
 body.signed-out nav.tabs,body.signed-out #meBtn{display:none}
+.push-box{background:var(--surface-2);border-radius:18px;padding:14px 16px}
+.push-h{font-weight:800;color:var(--ink);font-size:15px}
+.push-box p{margin:4px 0 0;color:var(--ink-2);font-weight:500;font-size:14px}
+.push-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.push-banner{display:flex;align-items:center;justify-content:space-between;gap:12px 16px;flex-wrap:wrap;background:var(--yellow-soft);box-shadow:none}
+.push-banner p{margin:4px 0 0;color:var(--ink-2);font-size:14px;max-width:52ch}
+.push-banner .push-btns{margin-top:0}
 
 @media (max-width:1100px){
   .tiles{grid-template-columns:1fr 1fr}
@@ -585,7 +592,7 @@ function renderHome(){
   const st=weekStats(),td=today(),name=esc(userName());
   const todays=S.tasks.filter(t=>t.date===td||(t.status!=='done'&&t.date&&t.date<td)).sort((a,b)=>((a.date<td)-(b.date<td))*-1||byTime(a,b));
   const goals=S.goals.slice(0,3);
-  return '<div class="home"><div class="col">'+
+  return '<div class="home"><div class="col">'+pushBanner()+
    '<section class="card hero"><div class="hero-top"><div class="hero-text"><p class="hi">Xin chào,</p><h1>'+name+' '+I.heart+'</h1><p>Hôm nay cũng là một ngày tuyệt vời để tiến lên nhé!</p></div>'+
      '<div class="hero-art"><img class="art" src="mascot.png" alt=""><span class="bubble hand">Cố lên<br>'+name+' ơi!</span></div></div>'+
     '<div class="ring-card">'+ring(st.pct)+'<span class="hand">Cố lên<br>'+name+' ơi!</span></div>'+
@@ -750,10 +757,10 @@ function onSession(s){
   if(!s||authMode==='newpass'){if(channel){sb.removeChannel(channel);channel=null}S.ready=false;S.tasks=[];S.goals=[];renderAuth();return}
   document.body.classList.remove('signed-out');
   const m=document.getElementById('main');if(m.dataset.view==='auth'){m.dataset.view='';m.innerHTML='<div class="loading">Đang tải…</div>'}
-  render();loadAll();startSync();
+  render();loadAll();startSync();refreshPush().catch(()=>{});
 }
 async function boot(){
-  if(DEMO){session={user:{email:'demo@myplan',user_metadata:{name:'Phanh'}}};demoData();render();return}
+  if(DEMO){session={user:{email:'demo@myplan',user_metadata:{name:'Phanh'}}};demoData();render();refreshPush();return}
   sb.auth.onAuthStateChange((ev,s)=>{
     if(ev==='PASSWORD_RECOVERY'){authMode='newpass';session=s;renderAuth();return}
     if(ev==='INITIAL_SESSION')return;
@@ -807,10 +814,68 @@ function goalModal(g){
     closeModal();write('goals',o);toast(isNew?'Đã thêm mục tiêu':'Đã lưu');
   };
 }
+/* ---------- thông báo nhắc việc (Web Push) ---------- */
+const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const isStandalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const pushSupported='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window&&location.protocol==='https:';
+S.push='checking';
+async function refreshPush(){
+  if(DEMO){S.push='off'}
+  else if(!pushSupported)S.push=isIOS&&!isStandalone?'need-install':'unsupported';
+  else if(Notification.permission==='denied')S.push='denied';
+  else{const reg=await navigator.serviceWorker.ready;S.push=(await reg.pushManager.getSubscription())?'on':'off'}
+  const box=document.getElementById('pushBox');if(box)box.innerHTML=pushBoxHtml();
+  if(S.view==='home'&&S.ready)render();
+}
+function b64uToBytes(s){const b=atob(s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4));return Uint8Array.from(b,c=>c.charCodeAt(0))}
+async function enablePush(){
+  if(DEMO){toast('Đây là bản xem thử, hãy đăng nhập để bật thông báo');return}
+  // Hỏi quyền ngay trong lần bấm (iPhone yêu cầu).
+  const perm=await Notification.requestPermission();
+  if(perm!=='granted'){await refreshPush();toast(perm==='denied'?'Bạn đã chặn thông báo. Mở Cài đặt → Thông báo → MyPlan để bật lại.':'Chưa bật thông báo');return}
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=(await reg.pushManager.getSubscription())||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64uToBytes(CFG.vapidPublicKey)});
+    const j=sub.toJSON();
+    const {error}=await sb.from('push_subscriptions').upsert({endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth},{onConflict:'endpoint'});
+    if(error)throw error;
+    toast('Đã bật nhắc việc trước 10 phút');
+  }catch(e){toast('Chưa bật được thông báo. Thử lại sau.')}
+  await refreshPush();
+}
+async function disablePush(){
+  const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();
+  if(sub){await sb.from('push_subscriptions').delete().eq('endpoint',sub.endpoint);await sub.unsubscribe()}
+  toast('Đã tắt thông báo trên thiết bị này');await refreshPush();
+}
+async function testPush(btn){
+  btn.disabled=true;btn.textContent='Đang gửi…';
+  const {data,error}=await sb.functions.invoke('send-reminders',{body:{test:true}});
+  btn.disabled=false;btn.textContent='Gửi thử';
+  toast(error?'Chưa gửi được. Thử lại sau.':data&&data.sent?'Đã gửi, xem thông báo trên máy nhé':'Không tìm thấy thiết bị đã bật thông báo');
+}
+function pushBoxHtml(){
+  const st=S.push;
+  const txt={checking:'Đang kiểm tra…',
+    on:'<b>Đang bật</b> trên thiết bị này. MyPlan nhắc trước 10 phút mỗi việc có giờ.',
+    off:'Nhận thông báo trước 10 phút mỗi việc có giờ, kể cả khi đang khoá màn hình.',
+    'need-install':'Trên iPhone, hãy thêm MyPlan ra màn hình chính trước: Safari → nút Chia sẻ → <b>Thêm vào MH chính</b>, rồi mở app từ màn hình chính.',
+    denied:'Thông báo đang bị chặn. Mở <b>Cài đặt → Thông báo → MyPlan</b> để cho phép, rồi quay lại đây.',
+    unsupported:'Trình duyệt này chưa hỗ trợ thông báo. Trên iPhone cần iOS 16.4 trở lên.'}[st];
+  const btns=st==='on'?'<button type="button" class="btn" data-act="push-test">Gửi thử</button><button type="button" class="btn danger" data-act="push-off">Tắt</button>':
+    st==='off'?'<button type="button" class="btn primary" data-act="push-on">Bật thông báo</button>':'';
+  return '<div class="push-h">🔔 Nhắc việc</div><p>'+txt+'</p>'+(btns?'<div class="push-btns">'+btns+'</div>':'');
+}
+function pushBanner(){
+  if(!(S.push==='off'||S.push==='need-install')||lsGet('myplan-push-dismiss'))return '';
+  return '<section class="card push-banner"><div><b>🔔 Bật nhắc việc trên điện thoại</b><p>'+(S.push==='need-install'?'Thêm MyPlan ra màn hình chính (Safari → Chia sẻ → Thêm vào MH chính), mở app từ đó rồi bật thông báo.':'MyPlan sẽ nhắc trước 10 phút mỗi tiết dạy, buổi học và việc có giờ.')+'</p></div>'+
+    '<div class="push-btns">'+(S.push==='off'?'<button class="pill-btn" data-act="push-on">Bật thông báo</button>':'')+'<button class="link-btn" data-act="push-dismiss">Để sau</button></div></section>';
+}
 function profileModal(){
   mroot.innerHTML='<div class="overlay" data-act="close-bg"><form class="modal" id="profForm" role="dialog" aria-modal="true" aria-labelledby="mp"><h3 id="mp">Tài khoản</h3><div class="form">'+
    '<label class="full">Tên hiển thị<input id="p-name" class="field" required maxlength="30" value="'+esc(userName())+'"></label>'+
-   '<p class="full muted" style="margin:0;font-size:14px">Email: '+esc(session.user.email)+'</p></div>'+
+   '<p class="full muted" style="margin:0;font-size:14px">Email: '+esc(session.user.email)+'</p>'+
+   '<div class="full push-box" id="pushBox">'+pushBoxHtml()+'</div></div>'+
    '<div class="m-actions"><button type="button" class="btn danger" data-act="logout">Đăng xuất</button><span class="sp"></span><button type="button" class="btn" data-act="close">Huỷ</button><button class="btn primary" type="submit">Lưu</button></div></form></div>';
   document.getElementById('profForm').onsubmit=async e=>{e.preventDefault();
     const name=document.getElementById('p-name').value.trim();if(!name)return;
@@ -835,6 +900,10 @@ document.addEventListener('click',e=>{
   if(a==='theme'){const n=isDark()?'light':'dark';document.documentElement.dataset.theme=n;lsSet('myplan-theme',n);themeIcon();return}
   if(a==='profile'){if(session)profileModal();return}
   if(a==='logout'){closeModal();sb.auth.signOut();return}
+  if(a==='push-on'){enablePush();return}
+  if(a==='push-off'){disablePush();return}
+  if(a==='push-test'){testPush(el);return}
+  if(a==='push-dismiss'){lsSet('myplan-push-dismiss','1');render();return}
   if(a==='pw-eye'){const inp=el.previousElementSibling,show=inp.type==='password';inp.type=show?'text':'password';el.setAttribute('aria-pressed',String(show));el.setAttribute('aria-label',show?'Ẩn mật khẩu':'Hiện mật khẩu');el.innerHTML=show?I.eyeOff:I.eye;inp.focus();return}
   if(a==='auth-go'){authMode=el.dataset.m;renderAuth();return}
   if(a==='toggle'){const t=S.tasks.find(x=>x.id===id);if(!t)return;const o={...t};if(o.status==='done'){o.status='todo';delete o.doneAt}else{o.status='done';o.doneAt=today()}write('tasks',o);return}
