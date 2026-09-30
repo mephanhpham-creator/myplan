@@ -1,5 +1,5 @@
 // Service worker: lưu sẵn khung app để mở nhanh, và nhận thông báo đẩy.
-const CACHE = 'myplan-v4';
+const CACHE = 'myplan-v5';
 const SHELL = ['./', './index.html', './config.js', './manifest.webmanifest', './icon-192.png', './mascot.png'];
 
 self.addEventListener('install', e => {
