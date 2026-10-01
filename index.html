@@ -262,7 +262,7 @@ main{margin-top:18px}
 .overlay{position:fixed;inset:0;background:rgba(20,30,10,.45);display:grid;place-items:center;padding:16px;z-index:50}
 .modal{background:var(--surface);border-radius:26px;padding:24px;width:min(500px,100%);max-height:calc(100% - 32px);overflow:auto}
 .modal h3{font-size:21px;margin-bottom:16px}
-.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
 .form label{display:flex;flex-direction:column;gap:5px;font-size:13.5px;color:var(--ink-2);font-weight:700;min-width:0}
 .form .full{grid-column:1/-1}
 .form .field{width:100%;color:var(--ink);font-size:16px;font-weight:500}
@@ -414,7 +414,10 @@ body.signed-out nav.tabs,body.signed-out #meBtn{display:none}
 .seg3 label+label span{border-left:1px solid var(--line)}
 .seg3 input:checked+span{background:var(--accent);color:var(--accent-ink)}
 .seg3 input:focus-visible+span{outline:2px solid var(--ink);outline-offset:-2px}
-.rv-grid{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:10px}
+.rv-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr);gap:10px}
+/* iPhone: ô chọn ngày giờ có độ rộng tối thiểu riêng, làm tràn khung. Cho phép co lại vừa cột. */
+input[type="time"],input[type="date"]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;text-align:left}
+input[type="time"]::-webkit-date-and-time-value,input[type="date"]::-webkit-date-and-time-value{text-align:left}
 .rv-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink-2);font-weight:700;min-width:0}
 .rv-grid .field{width:100%;color:var(--ink);font-size:16px}
 .rv-grid .rv-res{grid-column:1/-1}
@@ -438,9 +441,9 @@ body.signed-out nav.tabs,body.signed-out #meBtn{display:none}
   .review{grid-template-columns:1fr}
 }
 @media (max-width:720px){
-  .rv-grid{grid-template-columns:1fr 1fr}
+  .rv-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .rv-grid label:nth-child(3){grid-column:1/-1}
-  .bl-row{grid-template-columns:1fr 1fr}
+  .bl-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .bl-row>div{grid-column:1/-1}
 }
 </style>
