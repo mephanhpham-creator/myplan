@@ -197,7 +197,20 @@ main{margin-top:18px}
 .bar{flex:1;height:14px;border-radius:99px;background:var(--gray-soft);overflow:hidden}
 .bar i{display:block;height:100%;border-radius:99px}
 .g-pct{font-weight:800;min-width:44px;text-align:right}
-.g-meta{grid-column:2/4;display:flex;gap:16px;flex-wrap:wrap;color:var(--ink-3);font-size:13.5px}
+.g-meta{grid-column:2/4;display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center;color:var(--ink-3);font-size:13.5px}
+.g-meta .g-inc{margin-left:auto;padding:5px 14px;font-size:13.5px;color:var(--accent-deep);border-color:var(--accent)}
+.g-done{display:inline-flex;align-items:center;gap:4px;color:var(--accent-deep);font-weight:700}
+.g-done svg{width:14px;height:14px}
+.goal-row.is-done{opacity:.75}
+.done-goals{margin-top:14px}
+.done-goals summary{cursor:pointer;font-weight:800;color:var(--ink-2);padding:8px 2px;list-style:none}
+.done-goals summary::-webkit-details-marker{display:none}
+.done-goals summary::before{content:"▸ ";color:var(--ink-3)}
+.done-goals[open] summary::before{content:"▾ "}
+.done-goals .goal-grid{margin-top:8px}
+.g-mode-box .form{gap:10px}
+.g-check{flex-direction:row!important;align-items:center;gap:8px!important;font-weight:600!important}
+.g-check input{width:20px;height:20px;accent-color:var(--accent)}
 .g-meta span{display:inline-flex;align-items:center;gap:6px}
 .goal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
 .goal-grid .goal-row{margin:0}
@@ -548,8 +561,8 @@ const sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseKey);
 let session=null,channel=null;
 const userName=()=>{const u=session&&session.user;if(!u)return '';return (u.user_metadata&&u.user_metadata.name)||u.email.split('@')[0]};
 
-const fromTask=r=>({id:r.id,title:r.title,cat:r.cat,status:r.status,importance:r.importance||'',urgency:r.urgency||'',startDate:r.start_date||'',deadline:r.deadline||'',estimate:r.estimate==null?'':+r.estimate,doneAt:r.done_at||undefined,note:r.note||'',updatedAt:r.updated_at||r.created_at});
-const toTask=t=>({id:t.id,title:t.title,cat:t.cat,status:t.status,importance:t.importance||null,urgency:t.urgency||null,start_date:t.startDate||null,deadline:t.deadline||null,estimate:t.estimate===''||t.estimate==null?null:+t.estimate,done_at:t.doneAt||null,note:t.note||null});
+const fromTask=r=>({id:r.id,title:r.title,cat:r.cat,status:r.status,importance:r.importance||'',urgency:r.urgency||'',startDate:r.start_date||'',deadline:r.deadline||'',estimate:r.estimate==null?'':+r.estimate,doneAt:r.done_at||undefined,note:r.note||'',updatedAt:r.updated_at||r.created_at,goalId:r.goal_id||''});
+const toTask=t=>({id:t.id,title:t.title,cat:t.cat,status:t.status,importance:t.importance||null,urgency:t.urgency||null,start_date:t.startDate||null,deadline:t.deadline||null,estimate:t.estimate===''||t.estimate==null?null:+t.estimate,done_at:t.doneAt||null,note:t.note||null,goal_id:t.goalId||null});
 const fromBlock=r=>{const s=new Date(r.starts_at),e=r.ends_at?new Date(r.ends_at):null,as=r.actual_start?new Date(r.actual_start):null,ae=r.actual_end?new Date(r.actual_end):null;
   return {id:r.id,taskId:r.task_id||'',title:r.title,tag:r.tag||'',day:ymd(s),start:hm(s),end:e?hm(e):'',status:r.status,aStart:as?hm(as):'',aEnd:ae?hm(ae):'',d4:r.d4||'',result:r.result||''}};
 const toBlock=b=>({id:b.id,task_id:b.taskId||null,title:b.title,tag:b.tag||null,starts_at:isoLocal(b.day,b.start),ends_at:b.end?isoLocal(b.day,b.end):null,status:b.status,
@@ -559,8 +572,24 @@ const toHabit=h=>({id:h.id,name:h.name,position:h.position,active:h.active});
 const fromDay=r=>({id:r.id,day:r.day,habits:r.habits||{},good:r.journal_good||'',learned:r.journal_learned||'',tomorrow:r.journal_tomorrow||'',review:r.review||''});
 const toDay=d=>({id:d.id,day:d.day,habits:d.habits,journal_good:d.good||null,journal_learned:d.learned||null,journal_tomorrow:d.tomorrow||null,review:d.review||null});
 const MAP={tasks:[fromTask,toTask],blocks:[fromBlock,toBlock],habits:[fromHabit,toHabit],days:[fromDay,toDay]};
-const fromGoal=r=>({id:r.id,title:r.title,progress:r.progress,color:goalColor(r.color),icon:r.icon||'target',desc:r.description||'',deadline:r.deadline||''});
-const toGoal=g=>({id:g.id,title:g.title,progress:g.progress,color:g.color,icon:g.icon,description:g.desc||null,deadline:g.deadline||null});
+const fromGoal=r=>({id:r.id,title:r.title,progress:r.progress,color:goalColor(r.color),icon:r.icon||'target',desc:r.description||'',deadline:r.deadline||'',
+  mode:r.mode||'manual',current:r.current==null?'':+r.current,target:r.target==null?'':+r.target,unit:r.unit||'',doneAt:r.done_at||''});
+const toGoal=g=>({id:g.id,title:g.title,progress:goalPct(g),color:g.color,icon:g.icon,description:g.desc||null,deadline:g.deadline||null,
+  mode:g.mode||'manual',current:g.current===''||g.current==null?null:+g.current,target:g.target===''||g.target==null?null:+g.target,unit:g.unit||null,done_at:g.doneAt||null});
+// Tiến độ mục tiêu: đếm số (đã làm / tổng), theo việc gắn với mục tiêu (việc Xong / việc chưa Bỏ), hoặc tự kéo.
+function goalTasks(g){return S.tasks.filter(t=>t.goalId===g.id&&t.status!=='dropped')}
+function goalPct(g){
+  if(g.mode==='count')return +g.target>0?Math.max(0,Math.min(100,Math.round((+g.current||0)/ +g.target*100))):0;
+  if(g.mode==='tasks'){const ts=goalTasks(g);return ts.length?Math.round(ts.filter(t=>t.status==='done').length/ts.length*100):0}
+  return Math.max(0,Math.min(100,+g.progress||0));
+}
+const goalDone=g=>!!g.doneAt||goalPct(g)>=100;
+function goalMeta(g){
+  if(g.mode==='count')return fmtNum(+g.current||0)+'/'+fmtNum(+g.target||0)+(g.unit?' '+g.unit:'');
+  if(g.mode==='tasks'){const ts=goalTasks(g);return ts.filter(t=>t.status==='done').length+'/'+ts.length+' việc'}
+  return '';
+}
+const fmtNum=n=>String(Math.round(n*10)/10).replace('.',',');
 
 // Chế độ xem thử: mở index.html#demo để xem giao diện với dữ liệu mẫu, không lưu gì.
 const DEMO=location.hash==='#demo';
@@ -699,13 +728,21 @@ function monthHead(){
 }
 const goalImg=ic=>'g-'+(GOAL_ICONS.some(x=>x[0]===ic)?ic:'target')+'.png';
 function goalRow(g){
-  const p=Math.max(0,Math.min(100,+g.progress||0)),c=goalColor(g.color);
-  return '<div class="goal-row"><div class="g-ic soft-'+c+'"><img src="'+goalImg(g.icon)+'" alt=""></div>'+
+  const p=goalPct(g),c=goalColor(g.color),done=goalDone(g),meta=goalMeta(g);
+  const inc=g.mode==='count'&&!done?'<button class="ghost-btn g-inc" data-act="goal-inc" data-id="'+esc(g.id)+'" aria-label="Cộng thêm 1 '+esc(g.unit||'')+'">+1'+(g.unit?' '+esc(g.unit):'')+'</button>':'';
+  return '<div class="goal-row'+(done?' is-done':'')+'"><div class="g-ic soft-'+c+'"><img src="'+goalImg(g.icon)+'" alt=""></div>'+
     '<div class="g-title">'+esc(g.title)+'</div><button class="icon-btn" data-act="edit-goal" data-id="'+esc(g.id)+'" aria-label="Sửa mục tiêu">'+I.dots+'</button>'+
     (g.desc?'<div class="g-desc">'+esc(g.desc)+'</div>':'')+
     '<div class="g-bar"><span class="bar"><i class="bg-'+c+'" style="width:'+p+'%"></i></span><span class="g-pct num">'+p+'%</span></div>'+
-    (g.deadline?'<div class="g-meta"><span>'+I.cal+'Thời hạn: '+esc(dDMY(g.deadline))+'</span></div>':'')+
+    '<div class="g-meta">'+(meta?'<span class="num">'+esc(meta)+'</span>':'')+
+      (done?'<span class="g-done">'+I.check+'Hoàn thành'+(g.doneAt?' '+esc(dDMY(g.doneAt)):'')+'</span>':(g.deadline?'<span>'+I.cal+'Thời hạn: '+esc(dDMY(g.deadline))+'</span>':''))+inc+'</div>'+
   '</div>';
+}
+// Danh sách mục tiêu: đang làm ở trên, đã hoàn thành gom vào mục thu gọn.
+function goalsBlock(){
+  const act=S.goals.filter(g=>!goalDone(g)),fin=S.goals.filter(goalDone);
+  return (act.length?'<div class="goal-grid">'+act.map(goalRow).join('')+'</div>':'<div class="card empty">'+(fin.length?'Bạn đã hoàn thành mọi mục tiêu 🎉 Bấm + để đặt mục tiêu mới.':'Chưa có mục tiêu nào. Bấm + để đặt mục tiêu đầu tiên.')+'</div>')+
+    (fin.length?'<details class="done-goals"><summary>Đã hoàn thành ('+fin.length+')</summary><div class="goal-grid">'+fin.map(goalRow).join('')+'</div></details>':'');
 }
 function ring(p){
   const r=84,C=2*Math.PI*r;
@@ -760,7 +797,7 @@ function fourDBars(st){
 function renderHome(){
   const st=weekStats(),td=today(),name=esc(userName());
   const todays=dayBlocks(td),next=S.tasks.filter(t=>OPEN.includes(t.status)).sort(sortTasks).slice(0,5);
-  const goals=S.goals.slice(0,3),closedToday=S.days.some(d=>d.day===td);
+  const actGoals=S.goals.filter(g=>!goalDone(g)),goals=actGoals.slice(0,3),closedToday=S.days.some(d=>d.day===td);
   return '<div class="home"><div class="col">'+pushBanner()+
    '<section class="card hero"><div class="hero-top"><div class="hero-text"><p class="hi">Xin chào,</p><h1>'+name+' '+I.heart+'</h1><p>Hôm nay cũng là một ngày tuyệt vời để tiến lên nhé!</p></div>'+
      '<div class="hero-art"><img class="art" src="mascot.png" alt=""><span class="bubble hand">Cố lên<br>'+name+' ơi!</span></div></div>'+
@@ -769,7 +806,7 @@ function renderHome(){
      '<div class="tile soft-green"><span class="t-ic">'+I.stDone+'</span><div class="t-lb">Đã làm</div><b class="num">'+st.done+'</b><small>khối tuần này</small><img class="art" src="ic-done.png" alt=""></div>'+
      '<div class="tile soft-yellow"><span class="t-ic">'+I.stDoing+'</span><div class="t-lb">Đang làm</div><b class="num">'+st.doing+'</b><small>việc</small><img class="art" src="ic-doing.png" alt=""></div>'+
      '<div class="tile soft-pink"><span class="t-ic">'+I.stLeft+'</span><div class="t-lb">Còn lại</div><b class="num">'+st.left+'</b><small>khối tuần này</small><img class="art" src="ic-left.png" alt=""></div>'+
-     '<div class="tile soft-blue"><span class="t-ic">'+I.stGoal+'</span><div class="t-lb">Mục tiêu</div><b class="num">'+S.goals.length+'</b><small>mục tiêu</small><img class="art" src="ic-goal.png" alt=""></div>'+
+     '<div class="tile soft-blue"><span class="t-ic">'+I.stGoal+'</span><div class="t-lb">Mục tiêu</div><b class="num">'+actGoals.length+'</b><small>đang theo</small><img class="art" src="ic-goal.png" alt=""></div>'+
     '</div></section>'+
    '<section class="card"><div class="card-h"><h2>Lịch hôm nay</h2><div class="month-nav"><span class="muted d-only">'+esc(dLong(td))+'</span>'+
      '<button class="ghost-btn" data-act="review" data-date="'+td+'">'+(closedToday?'Xem lại ngày':'Chốt ngày')+'</button>'+
@@ -780,7 +817,7 @@ function renderHome(){
   '</div><div class="col">'+
    '<section class="card calcard d-only"><div>'+monthHead()+monthGrid()+'</div><div class="calside"><img class="art" src="calendar.png" alt=""><div class="note hand">Kế hoạch nhỏ mỗi ngày, thành công lớn mai sau! '+I.heartY+'</div></div></section>'+
    '<section class="card d-only"><div class="card-h"><h2>Mục tiêu của mình</h2><button class="link-btn" data-act="nav" data-view="stats">Xem tất cả '+I.arrow+'</button></div>'+
-    (goals.length?goals.map(goalRow).join(''):'<div class="empty">Chưa có mục tiêu. <button class="link-btn" data-act="new-goal">Thêm mục tiêu đầu tiên</button></div>')+'</section>'+
+    (goals.length?goals.map(goalRow).join(''):'<div class="empty">'+(S.goals.length?'Mọi mục tiêu đã hoàn thành 🎉':'Chưa có mục tiêu.')+' <button class="link-btn" data-act="new-goal">Thêm mục tiêu</button></div>')+'</section>'+
   '</div></div>';
 }
 
@@ -924,7 +961,7 @@ function renderStats(){
   const cats=Object.entries(hc).sort((a,b)=>b[1]-a[1]),hmax=cats.length?cats[0][1]:1;
   const rangeSeg='<div class="seg txt">'+[7,30].map(n=>'<button data-act="range" data-n="'+n+'" aria-pressed="'+(range===n)+'">'+n+' ngày</button>').join('')+'</div>';
   return '<section class="page-head"><div><h1>Mục tiêu</h1><p>Những mục tiêu nhỏ hôm nay sẽ tạo nên phiên bản tuyệt vời mai sau '+I.heartY+'</p></div><div class="ph-actions"><button class="add-round" data-act="new-goal" aria-label="Thêm mục tiêu">'+I.plus+'</button></div></section>'+
-   (S.goals.length?'<div class="goal-grid">'+S.goals.map(goalRow).join('')+'</div>':'<div class="card empty">Chưa có mục tiêu nào. Bấm + để đặt mục tiêu đầu tiên.</div>')+
+   goalsBlock()+
    '<div class="girl-note"><span class="hand">Mỗi ngày một chút tốt hơn nhé '+I.heartY+'</span><img class="art" src="girl.png" alt=""></div>'+
    '<h2 class="sec-title">Thống kê</h2><div class="kpis">'+
     '<section class="card kpi"><span>Khối đúng kế hoạch 7 ngày</span><b class="num">'+(st7.planned?Math.round(st7.done/st7.planned*100)+'%':'—')+'</b><small>'+st7.done+'/'+st7.planned+' khối đã xếp · '+st7.unplanned+' phát sinh</small></section>'+
@@ -1053,6 +1090,7 @@ function taskModal(t){
    '<label>Hạn (kết thúc)<input id="f-deadline" class="field" type="date" value="'+esc(t.deadline||'')+'"></label>'+
    '<label class="full">Ước tính (giờ)<input id="f-est" class="field" type="number" min="0" step="0.5" inputmode="decimal" value="'+esc(t.estimate)+'" placeholder="VD: 1,5 · việc lặp lại: giờ mỗi buổi"></label>'+
    '<label class="full">Ghi chú<textarea id="f-note" class="field" maxlength="1000">'+esc(t.note||'')+'</textarea></label>'+
+   '<label class="full">Mục tiêu (việc xong sẽ tính vào % mục tiêu)'+sel('f-goal',S.goals.filter(g=>!goalDone(g)||g.id===t.goalId).map(g=>[g.id,g.title]),t.goalId||'','— Không gắn —')+'</label>'+
    (isNew?'':'<div class="full t-blocks"><div class="tb-h"><b>Khối giờ</b><span class="muted num">Đã làm '+fmtH(h)+(t.estimate!==''?' / '+fmtH(+t.estimate):'')+'</span><button type="button" class="link-btn" data-act="new-block" data-task="'+esc(t.id)+'">+ Thêm khối giờ</button></div>'+
      (bs.length?'<ul>'+bs.slice(0,8).map(b=>'<li><button type="button" class="link-btn" data-act="edit-block" data-id="'+esc(b.id)+'">'+esc(dDMY(b.day)+' · '+timeRange(b))+'</button> <span class="muted">'+esc(b.status)+'</span></li>').join('')+'</ul>'+(bs.length>8?'<small class="muted">và '+(bs.length-8)+' khối khác</small>':''):'<small class="muted">Chưa có khối giờ nào.</small>')+'</div>')+
    '</div><div class="m-actions">'+(isNew?'':'<button type="button" class="btn danger" data-act="del-task" data-id="'+esc(t.id)+'">Xoá</button>')+'<span class="sp"></span><button type="button" class="btn" data-act="close">Huỷ</button><button class="btn primary" type="submit">'+(isNew?'Thêm':'Lưu')+'</button></div></form></div>';
@@ -1062,7 +1100,7 @@ function taskModal(t){
     const v=id=>document.getElementById(id).value;
     const title=v('f-title').trim();if(!title)return;
     const est=v('f-est').replace(',','.');
-    const o={...t,id:t.id||uid(),title,cat:v('f-cat'),status:v('f-status'),importance:v('f-imp'),urgency:v('f-urg'),startDate:v('f-start'),deadline:v('f-deadline'),estimate:est===''?'':+est,note:v('f-note').trim(),updatedAt:new Date().toISOString()};
+    const o={...t,id:t.id||uid(),title,cat:v('f-cat'),status:v('f-status'),importance:v('f-imp'),urgency:v('f-urg'),startDate:v('f-start'),deadline:v('f-deadline'),estimate:est===''?'':+est,note:v('f-note').trim(),goalId:v('f-goal'),updatedAt:new Date().toISOString()};
     if(o.status==='done'&&!o.doneAt)o.doneAt=today();if(o.status!=='done')delete o.doneAt;
     closeModal();write('tasks',o);toast(isNew?(o.status==='backlog'?'Đã thêm vào Backlog':'Đã thêm việc'):'Đã lưu');
   };
@@ -1116,21 +1154,37 @@ function habitModal(){
   };
 }
 function goalModal(g){
-  const isNew=!g.id,p=+g.progress||0;
+  const isNew=!g.id,p=+g.progress||0,mode=g.mode||'manual';
+  const linked=isNew?[]:goalTasks(g);
   mroot.innerHTML='<div class="overlay" data-act="close-bg"><form class="modal" id="goalForm" role="dialog" aria-modal="true" aria-labelledby="mg"><h3 id="mg">'+(isNew?'Thêm mục tiêu':'Cập nhật mục tiêu')+'</h3><div class="form">'+
    '<label class="full">Mục tiêu<input id="g-title" class="field" required maxlength="120" value="'+esc(g.title||'')+'" placeholder="VD: Nâng cao kỹ năng edit video"></label>'+
    '<label class="full">Mô tả ngắn<input id="g-desc" class="field" maxlength="160" value="'+esc(g.desc||'')+'" placeholder="VD: Thành thạo CapCut và làm video sáng tạo hơn"></label>'+
-   '<label class="full">Tiến độ<div class="range-row"><input id="g-prog" type="range" min="0" max="100" step="5" value="'+p+'"><output id="g-out" class="num" style="min-width:44px;font-weight:800">'+p+'%</output></div></label>'+
+   '<label class="full">Cách tính tiến độ<select id="g-mode" class="field">'+[['count','Đếm số (VD: 14/141 bài) — % tự tính'],['tasks','Theo việc gắn với mục tiêu — % tự tính'],['manual','Tự kéo %']].map(o=>'<option value="'+o[0]+'"'+(mode===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>'+
+   '<div class="full g-mode-box" data-mode="count"'+(mode==='count'?'':' hidden')+'><div class="form">'+
+     '<label>Đã làm<input id="g-cur" class="field" type="number" min="0" step="1" inputmode="decimal" value="'+esc(g.current)+'" placeholder="14"></label>'+
+     '<label>Tổng<input id="g-tgt" class="field" type="number" min="1" step="1" inputmode="decimal" value="'+esc(g.target)+'" placeholder="141"></label>'+
+     '<label class="full">Đơn vị<input id="g-unit" class="field" maxlength="20" value="'+esc(g.unit||'')+'" placeholder="bài, trang, km…"></label></div></div>'+
+   '<div class="full g-mode-box muted" data-mode="tasks"'+(mode==='tasks'?'':' hidden')+'>'+(linked.length?'Đang gắn '+linked.length+' việc ('+linked.filter(t=>t.status==='done').length+' đã xong). ':'Chưa có việc nào gắn. ')+'Gắn việc ở form việc: chọn ô <b>Mục tiêu</b>. Việc chuyển Xong thì % tự tăng.</div>'+
+   '<label class="full g-mode-box" data-mode="manual"'+(mode==='manual'?'':' hidden')+'>Tiến độ<div class="range-row"><input id="g-prog" type="range" min="0" max="100" step="5" value="'+p+'"><output id="g-out" class="num" style="min-width:44px;font-weight:800">'+p+'%</output></div></label>'+
+   '<label class="full g-check"><input id="g-done" type="checkbox"'+(g.doneAt?' checked':'')+'> Đã hoàn thành (chuyển xuống mục Đã hoàn thành)</label>'+
    '<label>Thời hạn<input id="g-deadline" class="field" type="date" value="'+esc(g.deadline||'')+'"></label>'+
    '<label>Màu<select id="g-color" class="field">'+GOAL_COLORS.map(c=>'<option value="'+c[0]+'"'+(goalColor(g.color)===c[0]?' selected':'')+'>'+c[1]+'</option>').join('')+'</select></label>'+
    '<label class="full">Hình minh hoạ<select id="g-icon" class="field">'+GOAL_ICONS.map(c=>'<option value="'+c[0]+'"'+((g.icon||'target')===c[0]?' selected':'')+'>'+c[1]+'</option>').join('')+'</select></label></div>'+
    '<div class="m-actions">'+(isNew?'':'<button type="button" class="btn danger" data-act="del-goal" data-id="'+esc(g.id)+'">Xoá</button>')+'<span class="sp"></span><button type="button" class="btn" data-act="close">Huỷ</button><button class="btn primary" type="submit">'+(isNew?'Thêm':'Lưu')+'</button></div></form></div>';
   const r=document.getElementById('g-prog');r.oninput=()=>document.getElementById('g-out').textContent=r.value+'%';
+  const ms=document.getElementById('g-mode');
+  ms.onchange=()=>document.querySelectorAll('.g-mode-box').forEach(b=>b.hidden=b.dataset.mode!==ms.value);
   document.getElementById('goalForm').onsubmit=e=>{e.preventDefault();
     const v=id=>document.getElementById(id).value;
     const title=v('g-title').trim();if(!title)return;
-    const o={...g,id:g.id||uid(),title,desc:v('g-desc').trim(),progress:+r.value,deadline:v('g-deadline'),color:v('g-color'),icon:v('g-icon')};
-    closeModal();write('goals',o);toast(isNew?'Đã thêm mục tiêu':'Đã lưu');
+    const num=id=>{const x=v(id).replace(',','.').trim();return x===''?'':+x};
+    const o={...g,id:g.id||uid(),title,desc:v('g-desc').trim(),mode:ms.value,progress:+r.value,current:num('g-cur'),target:num('g-tgt'),unit:v('g-unit').trim(),
+      deadline:v('g-deadline'),color:v('g-color'),icon:v('g-icon')};
+    if(o.mode==='count'&&!(+o.target>0)){toast('Nhập Tổng lớn hơn 0 để tự tính %');return}
+    const doneBox=document.getElementById('g-done').checked;
+    // Đạt 100% hoặc tích "Đã hoàn thành" → ghi ngày hoàn thành; bỏ tích → mở lại.
+    o.doneAt=doneBox||goalPct(o)>=100?(g.doneAt||today()):'';
+    closeModal();write('goals',o);toast(isNew?'Đã thêm mục tiêu':o.doneAt&&!g.doneAt?'Chúc mừng, đã hoàn thành mục tiêu 🎉':'Đã lưu');
   };
 }
 /* ---------- thông báo nhắc việc (Web Push) ---------- */
@@ -1240,6 +1294,9 @@ document.addEventListener('click',e=>{
     if(a==='bl-set'){const v=document.getElementById('bl-'+id).value;if(!v){toast('Chọn ngày trước');return}o.deadline=v;o.status='todo'}else o.status='dropped';
     captureDraft();write('tasks',o);toast(a==='bl-set'?'Đã đặt hạn, việc về Chưa làm':'Đã chuyển sang Bỏ');rerenderReview();return}
   if(a==='edit-goal'){const g=S.goals.find(x=>x.id===id);if(g)goalModal(g);return}
+  if(a==='goal-inc'){const g=S.goals.find(x=>x.id===id);if(!g)return;
+    const o={...g,current:(+g.current||0)+1};if(goalPct(o)>=100&&!o.doneAt)o.doneAt=today();
+    write('goals',o);toast(o.doneAt&&!g.doneAt?'Chúc mừng, đã hoàn thành mục tiêu 🎉':'+1 '+(g.unit||'')+' · '+goalMeta(o));return}
   if(a==='new-goal'){goalModal({progress:0,color:'green',icon:'target'});return}
   if(a==='del-goal'){armDelete(el,()=>{remove('goals',id);toast('Đã xoá mục tiêu')});return}
   if(a==='mon'){const n=+el.dataset.n,m=S.calMonth;if(n)S.calMonth=new Date(m.getFullYear(),m.getMonth()+n,1);else{const t=new Date();S.calMonth=new Date(t.getFullYear(),t.getMonth(),1);S.sel=today()}render();return}
