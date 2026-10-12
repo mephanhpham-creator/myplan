@@ -209,6 +209,12 @@ main{margin-top:18px}
 .done-goals[open] summary::before{content:"▾ "}
 .done-goals .goal-grid{margin-top:8px}
 .g-mode-box .form{gap:10px}
+.g-link{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.g-tasks{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:4px 10px;display:flex;flex-direction:column}
+.g-task{flex-direction:row!important;align-items:flex-start;gap:10px!important;padding:8px 0;border-top:1px solid var(--line);font-weight:600!important;color:var(--ink)!important}
+.g-task:first-child{border-top:0}
+.g-task input{width:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--accent)}
+.g-task small{font-weight:500}
 .g-check{flex-direction:row!important;align-items:center;gap:8px!important;font-weight:600!important}
 .g-check input{width:20px;height:20px;accent-color:var(--accent)}
 .g-meta span{display:inline-flex;align-items:center;gap:6px}
@@ -578,8 +584,11 @@ const toGoal=g=>({id:g.id,title:g.title,progress:goalPct(g),color:g.color,icon:g
   mode:g.mode||'manual',current:g.current===''||g.current==null?null:+g.current,target:g.target===''||g.target==null?null:+g.target,unit:g.unit||null,done_at:g.doneAt||null});
 // Tiến độ mục tiêu: đếm số (đã làm / tổng), theo việc gắn với mục tiêu (việc Xong / việc chưa Bỏ), hoặc tự kéo.
 function goalTasks(g){return S.tasks.filter(t=>t.goalId===g.id&&t.status!=='dropped')}
+// Giờ đã làm (khối Đã làm / Phát sinh, cả các buổi trước đây) của các việc gắn với mục tiêu.
+function goalHours(g){const ids=new Set(goalTasks(g).map(t=>t.id));return S.blocks.filter(b=>ids.has(b.taskId)&&counted(b)).reduce((s,b)=>s+bHours(b),0)}
 function goalPct(g){
   if(g.mode==='count')return +g.target>0?Math.max(0,Math.min(100,Math.round((+g.current||0)/ +g.target*100))):0;
+  if(g.mode==='hours')return +g.target>0?Math.max(0,Math.min(100,Math.round(goalHours(g)/ +g.target*100))):0;
   if(g.mode==='tasks'){const ts=goalTasks(g);return ts.length?Math.round(ts.filter(t=>t.status==='done').length/ts.length*100):0}
   return Math.max(0,Math.min(100,+g.progress||0));
 }
@@ -587,6 +596,7 @@ const goalDone=g=>!!g.doneAt||goalPct(g)>=100;
 function goalMeta(g){
   if(g.mode==='count')return fmtNum(+g.current||0)+'/'+fmtNum(+g.target||0)+(g.unit?' '+g.unit:'');
   if(g.mode==='tasks'){const ts=goalTasks(g);return ts.filter(t=>t.status==='done').length+'/'+ts.length+' việc'}
+  if(g.mode==='hours')return fmtH(goalHours(g))+' / '+fmtNum(+g.target||0)+' giờ · '+goalTasks(g).length+' việc';
   return '';
 }
 const fmtNum=n=>String(Math.round(n*10)/10).replace('.',',');
@@ -1155,16 +1165,20 @@ function habitModal(){
 }
 function goalModal(g){
   const isNew=!g.id,p=+g.progress||0,mode=g.mode||'manual';
-  const linked=isNew?[]:goalTasks(g);
+  // Danh sách việc để tích gắn vào mục tiêu: việc đã gắn lên đầu, gồm cả việc đã Xong; bỏ qua việc Bỏ.
+  const pool=S.tasks.filter(t=>t.status!=='dropped').sort((a,b)=>((b.goalId===g.id)-(a.goalId===g.id))||(a.cat||'').localeCompare(b.cat||'')||a.title.localeCompare(b.title));
+  const tlist='<div class="g-tasks">'+(pool.length?pool.map(t=>{const hrs=S.blocks.filter(b=>b.taskId===t.id&&counted(b)).reduce((s,b)=>s+bHours(b),0);
+      return '<label class="g-task"><input type="checkbox" name="g-task" value="'+esc(t.id)+'"'+(g.id&&t.goalId===g.id?' checked':'')+'><span>'+esc(t.title)+'<small class="muted"> · '+esc(t.cat||'')+(t.status==='done'?' · Xong':'')+(hrs?' · đã làm '+fmtH(hrs):'')+(t.goalId&&t.goalId!==g.id?' · đang gắn mục tiêu khác':'')+'</small></span></label>'}).join(''):'<small class="muted">Chưa có việc nào.</small>')+'</div>';
   mroot.innerHTML='<div class="overlay" data-act="close-bg"><form class="modal" id="goalForm" role="dialog" aria-modal="true" aria-labelledby="mg"><h3 id="mg">'+(isNew?'Thêm mục tiêu':'Cập nhật mục tiêu')+'</h3><div class="form">'+
    '<label class="full">Mục tiêu<input id="g-title" class="field" required maxlength="120" value="'+esc(g.title||'')+'" placeholder="VD: Nâng cao kỹ năng edit video"></label>'+
    '<label class="full">Mô tả ngắn<input id="g-desc" class="field" maxlength="160" value="'+esc(g.desc||'')+'" placeholder="VD: Thành thạo CapCut và làm video sáng tạo hơn"></label>'+
-   '<label class="full">Cách tính tiến độ<select id="g-mode" class="field">'+[['count','Đếm số (VD: 14/141 bài) — % tự tính'],['tasks','Theo việc gắn với mục tiêu — % tự tính'],['manual','Tự kéo %']].map(o=>'<option value="'+o[0]+'"'+(mode===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>'+
+   '<label class="full">Cách tính tiến độ<select id="g-mode" class="field">'+[['count','Đếm số (VD: 14/141 bài) — % tự tính'],['hours','Theo giờ đã làm của các việc gắn — % tự tính'],['tasks','Theo số việc đã Xong — % tự tính'],['manual','Tự kéo %']].map(o=>'<option value="'+o[0]+'"'+(mode===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>'+
    '<div class="full g-mode-box" data-mode="count"'+(mode==='count'?'':' hidden')+'><div class="form">'+
      '<label>Đã làm<input id="g-cur" class="field" type="number" min="0" step="1" inputmode="decimal" value="'+esc(g.current)+'" placeholder="14"></label>'+
      '<label>Tổng<input id="g-tgt" class="field" type="number" min="1" step="1" inputmode="decimal" value="'+esc(g.target)+'" placeholder="141"></label>'+
      '<label class="full">Đơn vị<input id="g-unit" class="field" maxlength="20" value="'+esc(g.unit||'')+'" placeholder="bài, trang, km…"></label></div></div>'+
-   '<div class="full g-mode-box muted" data-mode="tasks"'+(mode==='tasks'?'':' hidden')+'>'+(linked.length?'Đang gắn '+linked.length+' việc ('+linked.filter(t=>t.status==='done').length+' đã xong). ':'Chưa có việc nào gắn. ')+'Gắn việc ở form việc: chọn ô <b>Mục tiêu</b>. Việc chuyển Xong thì % tự tăng.</div>'+
+   '<label class="full g-mode-box" data-mode="hours"'+(mode==='hours'?'':' hidden')+'>Số giờ mục tiêu<input id="g-htgt" class="field" type="number" min="1" step="1" inputmode="decimal" value="'+esc(mode==='hours'?g.target:'')+'" placeholder="VD: 40"></label>'+
+   '<div class="full g-mode-box g-link" data-mode="tasks hours"'+(mode==='tasks'||mode==='hours'?'':' hidden')+'><b>Việc gắn với mục tiêu</b><small class="muted">Tích các việc thuộc mục tiêu này, kể cả việc đã làm trước đây. '+(mode==='hours'?'':'')+'Giờ của các buổi đã làm được tính luôn.</small>'+tlist+'</div>'+
    '<label class="full g-mode-box" data-mode="manual"'+(mode==='manual'?'':' hidden')+'>Tiến độ<div class="range-row"><input id="g-prog" type="range" min="0" max="100" step="5" value="'+p+'"><output id="g-out" class="num" style="min-width:44px;font-weight:800">'+p+'%</output></div></label>'+
    '<label class="full g-check"><input id="g-done" type="checkbox"'+(g.doneAt?' checked':'')+'> Đã hoàn thành (chuyển xuống mục Đã hoàn thành)</label>'+
    '<label>Thời hạn<input id="g-deadline" class="field" type="date" value="'+esc(g.deadline||'')+'"></label>'+
@@ -1173,18 +1187,27 @@ function goalModal(g){
    '<div class="m-actions">'+(isNew?'':'<button type="button" class="btn danger" data-act="del-goal" data-id="'+esc(g.id)+'">Xoá</button>')+'<span class="sp"></span><button type="button" class="btn" data-act="close">Huỷ</button><button class="btn primary" type="submit">'+(isNew?'Thêm':'Lưu')+'</button></div></form></div>';
   const r=document.getElementById('g-prog');r.oninput=()=>document.getElementById('g-out').textContent=r.value+'%';
   const ms=document.getElementById('g-mode');
-  ms.onchange=()=>document.querySelectorAll('.g-mode-box').forEach(b=>b.hidden=b.dataset.mode!==ms.value);
+  ms.onchange=()=>document.querySelectorAll('.g-mode-box').forEach(b=>b.hidden=!b.dataset.mode.split(' ').includes(ms.value));
   document.getElementById('goalForm').onsubmit=e=>{e.preventDefault();
     const v=id=>document.getElementById(id).value;
     const title=v('g-title').trim();if(!title)return;
     const num=id=>{const x=v(id).replace(',','.').trim();return x===''?'':+x};
     const o={...g,id:g.id||uid(),title,desc:v('g-desc').trim(),mode:ms.value,progress:+r.value,current:num('g-cur'),target:num('g-tgt'),unit:v('g-unit').trim(),
       deadline:v('g-deadline'),color:v('g-color'),icon:v('g-icon')};
-    if(o.mode==='count'&&!(+o.target>0)){toast('Nhập Tổng lớn hơn 0 để tự tính %');return}
+    if(o.mode==='hours'){o.target=num('g-htgt');o.unit='giờ'}
+    if((o.mode==='count'||o.mode==='hours')&&!(+o.target>0)){toast(o.mode==='hours'?'Nhập số giờ mục tiêu lớn hơn 0':'Nhập Tổng lớn hơn 0 để tự tính %');return}
+    // Gắn / bỏ gắn việc (chỉ khi cách tính dựa trên việc).
+    const changed=[];
+    if(o.mode==='tasks'||o.mode==='hours'){
+      const pick=new Set([...document.querySelectorAll('input[name="g-task"]:checked')].map(x=>x.value));
+      S.tasks.forEach(t=>{const want=pick.has(t.id);if(want&&t.goalId!==o.id)changed.push({...t,goalId:o.id});else if(!want&&t.goalId===o.id)changed.push({...t,goalId:''})});
+      changed.forEach(t=>{const i=S.tasks.findIndex(x=>x.id===t.id);if(i>=0)S.tasks[i]=t});
+    }
     const doneBox=document.getElementById('g-done').checked;
     // Đạt 100% hoặc tích "Đã hoàn thành" → ghi ngày hoàn thành; bỏ tích → mở lại.
     o.doneAt=doneBox||goalPct(o)>=100?(g.doneAt||today()):'';
-    closeModal();write('goals',o);toast(isNew?'Đã thêm mục tiêu':o.doneAt&&!g.doneAt?'Chúc mừng, đã hoàn thành mục tiêu 🎉':'Đã lưu');
+    closeModal();write('goals',o);changed.forEach(t=>write('tasks',t));
+    toast(isNew?'Đã thêm mục tiêu':o.doneAt&&!g.doneAt?'Chúc mừng, đã hoàn thành mục tiêu 🎉':'Đã lưu'+(changed.length?' · gắn/bỏ '+changed.length+' việc':''));
   };
 }
 /* ---------- thông báo nhắc việc (Web Push) ---------- */
